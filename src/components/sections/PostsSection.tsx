@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Heart, MessageCircle, Share2 } from "lucide-react";
+import { Heart, MessageCircle, Share2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type Post = {
@@ -25,6 +25,8 @@ export function PostsSection() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [activeCommentPost, setActiveCommentPost] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
 
   const fetchPosts = async (currentPage: number) => {
     setLoading(true);
@@ -45,6 +47,41 @@ export function PostsSection() {
   useEffect(() => {
     fetchPosts(page);
   }, [page]);
+
+  const handleLike = async (postId: string) => {
+    try {
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "like" })
+      });
+      if (res.ok) {
+        setPosts(posts.map(p => p._id === postId ? { ...p, likes: (p.likes || 0) + 1 } : p));
+        window.dispatchEvent(new Event("updateAnalytics"));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleComment = async (postId: string) => {
+    if (!commentText.trim()) return;
+    try {
+      const res = await fetch(`/api/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "comment", comment: commentText })
+      });
+      if (res.ok) {
+        setPosts(posts.map(p => p._id === postId ? { ...p, comments: [...(p.comments || []), commentText] } : p));
+        setCommentText("");
+        setActiveCommentPost(null);
+        window.dispatchEvent(new Event("updateAnalytics"));
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -75,9 +112,20 @@ export function PostsSection() {
       {loading ? (
         <div>Loading posts...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {posts.map((post) => (
-            <Card key={post._id} className="flex flex-col">
+        <div className="space-y-8">
+          {Object.entries(
+            posts.reduce((acc, post) => {
+              const key = post.userName || post.userId;
+              if (!acc[key]) acc[key] = [];
+              acc[key].push(post);
+              return acc;
+            }, {} as Record<string, Post[]>)
+          ).map(([userName, userPosts]) => (
+            <div key={userName} className="space-y-4">
+              <h3 className="text-xl font-semibold border-b pb-2">{userName}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {userPosts.map((post) => (
+                  <Card key={post._id} className="flex flex-col">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
                   <div>
@@ -108,22 +156,52 @@ export function PostsSection() {
                     )}
                   </div>
                 )}
+                
+                {/* Interactions */}
                 <div className="flex items-center justify-between text-xs text-muted-foreground pt-4 border-t">
-                  <div className="flex items-center gap-1">
+                  <button 
+                    onClick={() => handleLike(post._id)}
+                    className="flex items-center gap-1 hover:text-red-500 transition-colors"
+                  >
                     <Heart className="h-4 w-4" />
-                    <span>{post.likes.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
+                    <span>{(post.likes || 0).toLocaleString()}</span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveCommentPost(activeCommentPost === post._id ? null : post._id)}
+                    className="flex items-center gap-1 hover:text-blue-500 transition-colors"
+                  >
                     <MessageCircle className="h-4 w-4" />
-                    <span>{post.comments.length.toLocaleString()}</span>
-                  </div>
+                    <span>{(post.comments?.length || 0).toLocaleString()}</span>
+                  </button>
                   <div className="flex items-center gap-1">
                     <Share2 className="h-4 w-4" />
-                    <span>{post.shares.toLocaleString()}</span>
+                    <span>{(post.shares || 0).toLocaleString()}</span>
                   </div>
                 </div>
+
+                {/* Comment Input Box */}
+                {activeCommentPost === post._id && (
+                  <div className="pt-3 mt-3 border-t flex items-center gap-2">
+                    <input
+                      type="text"
+                      placeholder="Add a comment..."
+                      className="flex-1 bg-background border border-input rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleComment(post._id);
+                      }}
+                    />
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => handleComment(post._id)}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
+          ))}
+              </div>
+            </div>
           ))}
         </div>
       )}

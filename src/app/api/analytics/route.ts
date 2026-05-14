@@ -1,15 +1,31 @@
 import { NextResponse } from 'next/server';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const postId = searchParams.get('postId');
+
     const uri = process.env.DB_MONGO_URL as string;
     if (!uri) throw new Error("Missing DB_MONGO_URL");
     const client = await MongoClient.connect(uri);
     const db = client.db('social_dashboard');
     
-    // Aggregation pipeline to get insightful data from nested posts
-    const pipeline = [
+    const pipeline: any[] = [];
+    
+    const matchStage: any = {};
+    if (userId && userId !== 'all') {
+       matchStage.userId = userId;
+    }
+    if (postId && postId !== 'all') {
+       matchStage._id = new ObjectId(postId);
+    }
+    if (Object.keys(matchStage).length > 0) {
+       pipeline.push({ $match: matchStage });
+    }
+
+    pipeline.push(
       {
         $group: {
           _id: '$platform',
@@ -22,7 +38,7 @@ export async function GET() {
       {
         $sort: { postCount: -1 }
       }
-    ];
+    );
 
     const aggregatedData = await db.collection('posts').aggregate(pipeline).toArray();
     await client.close();

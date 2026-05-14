@@ -6,6 +6,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const userId = searchParams.get('userId');
     const skip = (page - 1) * limit;
 
     const uri = process.env.DB_MONGO_URL as string;
@@ -13,10 +14,16 @@ export async function GET(request: Request) {
     const client = await MongoClient.connect(uri);
     const db = client.db('social_dashboard');
     
+    // Build query
+    const matchQuery: any = {};
+    if (userId && userId !== 'all') {
+      matchQuery.userId = userId;
+    }
+
     // Fetch total document count and the paginated list of posts
     const collection = db.collection('posts');
-    const totalPosts = await collection.countDocuments();
-    const posts = await collection.find({}).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
+    const totalPosts = await collection.countDocuments(matchQuery);
+    const posts = await collection.find(matchQuery).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray();
     
     await client.close();
 

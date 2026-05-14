@@ -1,10 +1,12 @@
-"use client";
+const fs = require('fs');
+
+const code = `"use client";
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Line, Bar, Doughnut } from "react-chartjs-2";
 import { Chart, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend } from "chart.js";
-import { Eye, Heart, MessageCircle, BarChart3, Target, Globe, Clock, Users } from "lucide-react";
+import { Eye, MessageCircle, BarChart3, Target, Globe, Clock, Users } from "lucide-react";
 
 Chart.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Tooltip, Legend);
 
@@ -24,8 +26,6 @@ type UserType = {
 
 export function AnalyticsSection() {
   const [selectedUser, setSelectedUser] = useState("all");
-  const [selectedPost, setSelectedPost] = useState("all");
-  const [userPosts, setUserPosts] = useState<any[]>([]);
   const [usersList, setUsersList] = useState<UserType[]>([]);
   const [analyticsData, setAnalyticsData] = useState<AggregatedData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,27 +43,12 @@ export function AnalyticsSection() {
       .catch(err => console.error("Error fetching users:", err));
   }, []);
 
-  useEffect(() => {
-    if (selectedUser !== "all") {
-      fetch(`/api/posts?userId=${selectedUser}&limit=100`)
-        .then(res => res.json())
-        .then(json => {
-          if (json.success) setUserPosts(json.data);
-        })
-        .catch(err => console.error(err));
-    } else {
-      setUserPosts([]);
-    }
-  }, [selectedUser]);
-
   const fetchAnalytics = () => {
     setLoading(true);
     let url = "/api/analytics";
-    const params = new URLSearchParams();
-    if (selectedUser !== "all") params.append("userId", selectedUser);
-    if (selectedPost !== "all") params.append("postId", selectedPost);
-    if (params.toString()) url += `?${params.toString()}`;
-    
+    if (selectedUser !== "all") {
+      url += \`?userId=\${selectedUser}\`;
+    }
     fetch(url)
       .then(res => res.json())
       .then(json => {
@@ -80,7 +65,7 @@ export function AnalyticsSection() {
     const handleAnalyticsUpdate = () => fetchAnalytics();
     window.addEventListener("updateAnalytics", handleAnalyticsUpdate);
     return () => window.removeEventListener("updateAnalytics", handleAnalyticsUpdate);
-  }, [selectedUser, selectedPost]);
+  }, [selectedUser]);
 
   const totalPosts = analyticsData.reduce((sum, item) => sum + item.postCount, 0);
   const sumLikes = analyticsData.reduce((sum, item) => sum + item.totalLikes, 0);
@@ -108,45 +93,28 @@ export function AnalyticsSection() {
           <Users className="h-5 w-5 text-muted-foreground mr-1" />
           <select 
             value={selectedUser}
-            onChange={(e) => {
-              setSelectedUser(e.target.value);
-              setSelectedPost("all");
-            }}
+            onChange={(e) => setSelectedUser(e.target.value)}
             className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >
             <option value="all">All Users / Global Overview</option>
-            {usersList.map((user: any) => (
-              <option key={user.id || user.userId || user._id} value={user.id || user.userId || user._id}>
-                {user.name || user.id || user.userId}
+            {usersList.map((user) => (
+              <option key={user.userId || user._id} value={user.userId || user._id}>
+                {user.name || user.userId}
               </option>
             ))}
           </select>
-          {selectedUser !== "all" && (
-            <select 
-              value={selectedPost}
-              onChange={(e) => setSelectedPost(e.target.value)}
-              className="flex-1 bg-background border border-input rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-            >
-              <option value="all">All Posts</option>
-              {userPosts.map((post: any) => (
-                <option key={post._id} value={post._id}>
-                  {post.content.substring(0, 30)}...
-                </option>
-              ))}
-            </select>
-          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Likes</CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Estimated Reach</CardTitle>
+            <Eye className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{loading ? "..." : sumLikes.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Across selected profile</p>
+            <div className="text-2xl font-bold">{loading ? "..." : reach.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">Based on engagement</p>
           </CardContent>
         </Card>
         <Card>
@@ -242,4 +210,7 @@ export function AnalyticsSection() {
       </div>
     </div>
   );
-}
+}`;
+
+fs.writeFileSync('src/components/sections/AnalyticsSection.tsx', code);
+console.log('Done!');
